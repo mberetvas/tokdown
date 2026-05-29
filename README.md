@@ -13,9 +13,37 @@ Chunk limits can be expressed in **Google tokens** (Hugging Face tokenizer), **O
 
 ## Install
 
+You need [uv](https://docs.astral.sh/uv/) and Python 3.13+. Install tokdown as a global CLI with `uv tool install` (isolated tool environment; the `tokdown` executable goes on your PATH).
+
+**From GitHub (no clone):**
+
 ```bash
-uv sync
+uv tool install git+https://github.com/mberetvas/tokdown.git
 ```
+
+Pin a tag or branch with `@` on the URL, for example `git+https://github.com/mberetvas/tokdown.git@v0.1.0`.
+
+**From a local clone:**
+
+```bash
+git clone https://github.com/mberetvas/tokdown.git
+cd tokdown
+uv tool install .
+```
+
+Re-run `uv tool install .` (or add `--force`) after pulling changes you want on your PATH.
+
+If uv warns that the tool bin directory is not on your PATH, run `uv tool update-shell` and restart the shell.
+
+Verify:
+
+```bash
+tokdown --help
+```
+
+To run once without installing, use `uvx --from git+https://github.com/mberetvas/tokdown.git tokdown …`.
+
+**Contributors** — work in the repo with `uv sync` and `uv run tokdown` (see [Development](#development)).
 
 ## Usage
 
@@ -61,6 +89,11 @@ When using the Google provider, tokdown reduces Hub/transformers noise on stderr
 ### Google tokens (default)
 
 Uses a Hugging Face tokenizer. Default model: `google/gemma-2-2b`.
+
+**Before you count or split with Gemma**, complete both steps on the Hugging Face account you will use locally:
+
+1. **Accept the model license** — open [google/gemma-2-2b](https://huggingface.co/google/gemma-2-2b), sign in, and agree to the terms (or request access if approval is required). Without this, Hub returns a gated-repo error even when you are logged in.
+2. **Authenticate the CLI** — `hf auth login` (token from [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)). Verify with `hf auth whoami`.
 
 ```bash
 uv run tokdown document.md 4000
@@ -125,7 +158,7 @@ Example JSON log fields: `level`, `event`, `correlation_id`, `token_provider`, p
 
 - Lazy-load sets `TOKENIZERS_PARALLELISM=false` and lowers transformers log verbosity; count mode also silences some Hub progress via `stdout_clean`.
 - First run may download the tokenizer from the Hugging Face Hub (network latency).
-- `google/gemma-2-2b` is a gated model: accept the license on the Hub and authenticate (`huggingface-cli login`) if downloads fail.
+- `google/gemma-2-2b` is **gated**: you must accept the license on [the model page](https://huggingface.co/google/gemma-2-2b) for your Hub account, then run `hf auth login`. A valid token alone is not enough if access has not been granted (403 vs 401).
 - Encodes use `add_special_tokens=False` so BOS/special tokens do not count toward limits.
 
 **OpenAI / tiktoken**

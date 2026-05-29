@@ -1,5 +1,7 @@
 import argparse
+import functools
 import sys
+from importlib.resources import files
 from pathlib import Path
 from uuid import uuid4
 
@@ -20,6 +22,28 @@ from tokdown.infrastructure.api import (
 )
 
 from .stdout_clean import stdout_clean
+
+
+@functools.lru_cache
+def _help_banner() -> str:
+    return (
+        files("tokdown.interface._internal")
+        .joinpath("tokdown_ascii.txt")
+        .read_text(encoding="utf-8")
+        .rstrip("\n")
+    )
+
+
+class _RootHelpParser(argparse.ArgumentParser):
+    def format_help(self) -> str:
+        return f"{_help_banner()}\n\n{super().format_help()}"
+
+    def print_help(self, file: object | None = None) -> None:
+        if file is None:
+            file = sys.stdout
+        if file is sys.stdout and hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        super().print_help(file)
 
 
 def _normalize_argv(argv: list[str] | None) -> list[str]:
@@ -114,7 +138,7 @@ class CliController:
         return 0
 
     def _build_parent_parser(self) -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser(
+        parser = _RootHelpParser(
             prog="tokdown",
             description=(
                 "Split markdown documents into size-bounded parts, "

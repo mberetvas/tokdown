@@ -7,6 +7,9 @@ import pytest
 from tokdown.interface.api import main
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+_BANNER_FIRST_LINE = (
+    _REPO_ROOT / "docs" / "assets" / "tokdown_ascii.txt"
+).read_text(encoding="utf-8").splitlines()[0]
 
 
 def test_words_mode_splits_file_and_writes_parts(tmp_path: Path) -> None:
@@ -320,6 +323,8 @@ def test_root_help_lists_count_and_split(capsys) -> None:
     assert exit_code == 0
     assert "count" in captured.out
     assert "split" in captured.out
+    assert _BANNER_FIRST_LINE in captured.out
+    assert captured.out.index(_BANNER_FIRST_LINE) < captured.out.index("usage:")
 
 
 def test_count_openai_stdout_is_integer_only(tmp_path: Path, capsys) -> None:
