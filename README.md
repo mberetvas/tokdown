@@ -54,7 +54,7 @@ fi
 
 Split keeps printing errors on stdout for backward compatibility with existing scripts.
 
-When using the Google provider, tokdown sets `HF_HUB_DISABLE_PROGRESS_BARS=1` and `TRANSFORMERS_NO_ADVISORY_WARNINGS=1` to reduce Hub noise on stderr during count and split.
+When using the Google provider, tokdown reduces Hub/transformers noise on stderr (for example `HF_HUB_DISABLE_PROGRESS_BARS`, `TRANSFORMERS_NO_ADVISORY_WARNINGS`, `TOKENIZERS_PARALLELISM=false`, and lowered transformers log verbosity on lazy load).
 
 ### Google tokens (default)
 
@@ -94,13 +94,13 @@ uv run tokdown --words --force document.md 500 ./parts
 
 ### Logging
 
-Structured logs are written to **stderr**. User-facing success messages go to **stdout** unless `--quiet` is set.
+Structured logs are written to **stderr**. On **split**, success messages go to **stdout** unless `--quiet` is set (`count` has no success line on stdout).
 
 | Flag | Description |
 | ---- | ----------- |
 | `--log-level` | Minimum level: `debug`, `info`, `warn`, `error` (default: `info`) |
 | `--log-format` | `text` (human-readable) or `json` (one JSON object per line) |
-| `--quiet` | Suppress success output on stdout |
+| `--quiet` | **Split only** — suppress success output on stdout |
 
 ```bash
 uv run tokdown --log-format json --log-level warn document.md 4000
@@ -121,6 +121,7 @@ Example JSON log fields: `level`, `event`, `correlation_id`, `token_provider`, p
 
 **Google / Hugging Face**
 
+- Lazy-load sets `TOKENIZERS_PARALLELISM=false` and lowers transformers log verbosity; count mode also silences some Hub progress via `stdout_clean`.
 - First run may download the tokenizer from the Hugging Face Hub (network latency).
 - `google/gemma-2-2b` is a gated model: accept the license on the Hub and authenticate (`huggingface-cli login`) if downloads fail.
 - Encodes use `add_special_tokens=False` so BOS/special tokens do not count toward limits.
@@ -133,41 +134,16 @@ Example JSON log fields: `level`, `event`, `correlation_id`, `token_provider`, p
 
 Hard-splitting inside a code fence adds closing/reopening fence lines. That slightly increases token/word counts but keeps each part valid markdown for LLMs.
 
-## Architecture
+## Design
 
-Tokdown uses a **facade per layer**: each package exposes a single public `api.py`. Implementation details live in `_internal/` and must not be imported across layer boundaries.
+Tokdown is split into layers (interface, application, domain, infrastructure). Each layer exposes a single public `api.py`; implementation stays in that layer’s `_internal` and must not be imported across layers.
 
-**Composition modules** (`<layer>/_internal/composition.py`) wire adapters and use cases inside each layer. Non-domain facades re-export from composition with a single `# noqa: TID251` import line in `api.py`. The domain facade (`domain/api.py`) keeps a file-level TID251 ignore because it is the only public surface for domain internals.
+- **Splitting** prefers paragraph breaks in prose but treats fenced code blocks as atomic when possible.
+- **Hard splits** inside a fence auto-close and re-open the fence so each part stays valid markdown for LLMs (small size overhead vs broken fences).
+- **Sizing** is pluggable (words, OpenAI tiktoken, Google HF tokenizer); token counts differ by provider — match the mode to your target model.
+- **Domain** is pure string math; filesystem and tokenizer adapters live in application/infrastructure ports.
 
-```text
-src/tokdown/
-  interface/api.py                    → main() (one noqa re-export from composition)
-  interface/_internal/composition.py  → run_cli()
-  application/api.py                  → SplitDocumentApplication, CountDocumentApplication, DTOs
-  application/_internal/composition.py
-  application/ports.py                → DocumentGateway
-  domain/api.py                       → DocumentSplittingDomain (pure string splitting)
-  domain/logging/api.py               → StructuredLogger port, LogEvent constants
-  infrastructure/api.py             → create_infrastructure() (one noqa re-export)
-  infrastructure/_internal/composition.py
-```
-
-**Allowed imports**
-
-| From | May import |
-| ---- | ---------- |
-| `interface` | `application.api`, `domain.api`, `infrastructure.api` |
-| `application` | `domain.api`, `application.ports` |
-| `infrastructure` | `application.ports`, `domain.api`, `domain.logging.api` |
-| `domain` (other packages) | `domain.api` only |
-| `<layer>/_internal/**` | Same layer’s `_internal` only |
-| Non-domain `api.py` | Its own `_internal.composition` only (one `# noqa: TID251` line) |
-| `domain/api.py` | `domain._internal` (file-level TID251 ignore) |
-| `tests/domain/_internal/` | `domain._internal` (chunking edge cases only) |
-
-**Enforcement (merge blocker)**
-
-Cross-layer `_internal` imports are not allowed. Ruff (`TID252`, `flake8-tidy-imports` `banned-api`) and `tests/architecture/test_internal_import_boundaries.py` (AST walk of `src/tokdown`) enforce this. CI and local checks must pass:
+Import boundaries, facade rules, and enforcement are documented in [docs/adr/001-layered-facades-and-imports.md](docs/adr/001-layered-facades-and-imports.md). Before merge:
 
 ```bash
 uv run ruff check src tests
@@ -204,6 +180,8 @@ uv run pytest
 
 Development is test-driven: add or extend tests under `tests/`, implement behind the layer `api.py` facades, and keep `ruff check` green. Prefer facade tests; use `tests/domain/_internal/` only for markdown fence edge cases.
 
+Contributor tooling, package management (`uv`), and TDD policy: [AGENTS.md](AGENTS.md).
+
 **Layout**
 
 ```text
@@ -220,4 +198,4 @@ tests/
 
 ## License
 
-See repository license terms (if applicable).
+No license file is included in this repository yet.

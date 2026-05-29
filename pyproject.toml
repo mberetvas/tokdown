@@ -1,7 +1,7 @@
 [project]
 name = "tokdown"
 version = "0.1.0"
-description = "Add your description here"
+description = "Split markdown documents into size-bounded parts for LLM context windows."
 readme = "README.md"
 authors = [
     { name = "Maxime Beretvas", email = "maximeberetvas@outlook.com" }
