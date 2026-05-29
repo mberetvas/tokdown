@@ -8,7 +8,9 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "sentencepiece>=0.2.1",
     "tiktoken>=0.13.0",
+    "transformers>=5.9.0",
 ]
 
 [project.scripts]
@@ -17,3 +19,38 @@ tokdown = "tokdown:main"
 [build-system]
 requires = ["uv_build>=0.9.25,<0.10.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "ruff>=0.15.15",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "TID252",
+    "TID",
+]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"tokdown.interface._internal" = { msg = "Import tokdown.interface.api only." }
+"tokdown.application._internal" = { msg = "Import tokdown.application.api only." }
+"tokdown.infrastructure._internal" = { msg = "Import tokdown.infrastructure.api only." }
+"tokdown.domain._internal" = { msg = "Import tokdown.domain.api only (except domain/api.py and tests/domain/_internal/)." }
+
+[tool.ruff.lint.per-file-ignores]
+"src/tokdown/domain/api.py" = ["TID251"]
+"src/tokdown/application/api.py" = ["TID251"]
+"src/tokdown/infrastructure/api.py" = ["TID251"]
+"src/tokdown/interface/api.py" = ["TID251"]
+"tests/domain/_internal/**" = ["TID251"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]

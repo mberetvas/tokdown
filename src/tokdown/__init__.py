@@ -1,2 +1,3 @@
-def main() -> None:
-    print("Hello from tokdown!")
+from tokdown.interface.api import main
+
+__all__ = ["main"]
