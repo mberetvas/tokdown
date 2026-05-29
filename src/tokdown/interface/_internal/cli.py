@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+from uuid import uuid4
 
 from tokdown.application.api import (
     PartFileExistsError,
@@ -7,6 +8,7 @@ from tokdown.application.api import (
     SplitDocumentRequest,
 )
 from tokdown.domain.api import ChunkUnit, chunk_limit
+from tokdown.domain.logging.api import LogLevel
 from tokdown.infrastructure.api import InfraSettings, create_infrastructure
 
 
@@ -28,7 +30,14 @@ class CliController:
             else:
                 model_id = args.model_id or "google/gemma-2-2b"
 
-        infrastructure = create_infrastructure(InfraSettings())
+        infrastructure = create_infrastructure(
+            InfraSettings(
+                log_level=LogLevel(args.log_level),
+                log_format=args.log_format,
+                correlation_id=str(uuid4()),
+                token_provider=token_provider,
+            ),
+        )
         application = SplitDocumentApplication(
             document_gateway=infrastructure.document_gateway,
             chunk_sizer_factory=infrastructure.chunk_sizer_factory,
@@ -55,7 +64,8 @@ class CliController:
             print(f"Failed to process document: {exc}")
             return 1
 
-        print(f"Wrote {result.part_count} part(s) to {result.output_dir}")
+        if not args.quiet:
+            print(f"Wrote {result.part_count} part(s) to {result.output_dir}")
         return 0
 
     def _parse_args(self) -> argparse.Namespace:
@@ -85,6 +95,23 @@ class CliController:
             "--force",
             action="store_true",
             help="Overwrite existing part files.",
+        )
+        parser.add_argument(
+            "--log-level",
+            choices=[level.value for level in LogLevel],
+            default=LogLevel.INFO.value,
+            help="Minimum log level to emit.",
+        )
+        parser.add_argument(
+            "--log-format",
+            choices=["json", "text"],
+            default="text",
+            help="Log output format (stderr).",
+        )
+        parser.add_argument(
+            "--quiet",
+            action="store_true",
+            help="Suppress success messages on stdout.",
         )
         parser.add_argument("input_file", type=Path)
         parser.add_argument("limit", type=int)

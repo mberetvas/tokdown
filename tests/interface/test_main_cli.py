@@ -150,6 +150,76 @@ def test_cli_exits_one_when_part_file_exists_without_force(
     assert "Traceback" not in captured.err
 
 
+def test_quiet_suppresses_success_stdout(tmp_path: Path, capsys) -> None:
+    source = tmp_path / "sample.md"
+    source.write_text("one two three", encoding="utf-8")
+
+    exit_code = main(["--words", "--quiet", str(source), "3"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.out == ""
+
+
+def test_log_format_json_emits_output_file_exists_event(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    import json
+
+    source = tmp_path / "sample.md"
+    source.write_text("one two three", encoding="utf-8")
+    output_dir = tmp_path / "output"
+    main(["--words", str(source), "3", str(output_dir)])
+
+    exit_code = main(
+        [
+            "--words",
+            "--log-format",
+            "json",
+            "--log-level",
+            "error",
+            str(source),
+            "3",
+            str(output_dir),
+        ],
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    record = json.loads(captured.err.strip())
+    assert record["event"] == "output_file_exists"
+    assert record["correlation_id"]
+    assert record["token_provider"] == ""
+
+
+def test_log_format_text_emits_human_readable_event(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    source = tmp_path / "sample.md"
+    source.write_text("one two three", encoding="utf-8")
+    output_dir = tmp_path / "output"
+    main(["--words", str(source), "3", str(output_dir)])
+
+    exit_code = main(
+        [
+            "--words",
+            "--log-format",
+            "text",
+            "--log-level",
+            "error",
+            str(source),
+            "3",
+            str(output_dir),
+        ],
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "event=output_file_exists" in captured.err
+
+
 def test_cli_overwrites_existing_parts_with_force(tmp_path: Path) -> None:
     source = tmp_path / "sample.md"
     source.write_text("alpha beta gamma delta", encoding="utf-8")

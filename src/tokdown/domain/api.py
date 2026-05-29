@@ -1,6 +1,7 @@
 from tokdown.domain._internal.services import MarkdownChunkingService
 from tokdown.domain._internal.sizing import ChunkSizer, TokenEncoder, WordChunkSizer
 from tokdown.domain._internal.value_objects import ChunkLimit, ChunkUnit
+from tokdown.domain.logging.api import StructuredLogger
 
 
 def chunk_limit(value: int, unit: ChunkUnit) -> ChunkLimit:
@@ -14,8 +15,11 @@ class DocumentSplittingDomain:
         self,
         *,
         chunking_service: MarkdownChunkingService | None = None,
+        logger: StructuredLogger | None = None,
     ) -> None:
-        self._chunking_service = chunking_service or MarkdownChunkingService()
+        self._chunking_service = chunking_service or MarkdownChunkingService(
+            logger=logger,
+        )
 
     def split(
         self,
