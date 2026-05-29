@@ -11,6 +11,7 @@ class LogLevel(Enum):
 
 class LogEvent:
     CODE_BLOCK_HARD_SPLIT = "code_block_hard_split"
+    OUTPUT_FILE_EXISTS = "output_file_exists"
 
 
 class StructuredLogger(ABC):

@@ -31,4 +31,7 @@ class FakeDocumentGateway(DocumentGateway):
         part_path = directory / f"{document.stem}_part{part.number}.md"
         if part_path in {path for path, _ in self.written_parts} and not force:
             raise PartFileExistsError(f"Part file already exists: {part_path}")
+        self.written_parts = [
+            (path, body) for path, body in self.written_parts if path != part_path
+        ]
         self.written_parts.append((part_path, part.body))

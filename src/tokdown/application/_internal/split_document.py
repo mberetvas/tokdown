@@ -3,8 +3,9 @@ from pathlib import Path
 from typing import Protocol
 
 from tokdown.application.dtos import SplitDocumentRequest, SplitDocumentResult
-from tokdown.application.ports import DocumentGateway, DocumentPart
+from tokdown.application.ports import DocumentGateway, DocumentPart, PartFileExistsError
 from tokdown.domain.api import ChunkSizer, DocumentSplittingDomain
+from tokdown.domain.logging.api import LogEvent, LogLevel, StructuredLogger
 
 
 class ChunkSizerFactory(Protocol):
@@ -17,6 +18,7 @@ class SplitDocumentApplication:
     document_gateway: DocumentGateway
     chunk_sizer_factory: ChunkSizerFactory
     splitting_domain: DocumentSplittingDomain
+    logger: StructuredLogger | None = None
 
     def execute(self, request: SplitDocumentRequest) -> SplitDocumentResult:
         document = self.document_gateway.load(request.source_path)
@@ -27,13 +29,23 @@ class SplitDocumentApplication:
         part_paths: list[Path] = []
         for index, chunk_body in enumerate(chunks, start=1):
             part = DocumentPart(number=index, body=chunk_body)
-            self.document_gateway.save_part(
-                document,
-                part,
-                output_dir,
-                force=request.force,
-            )
-            part_paths.append(output_dir / f"{document.stem}_part{index}.md")
+            part_path = output_dir / f"{document.stem}_part{index}.md"
+            try:
+                self.document_gateway.save_part(
+                    document,
+                    part,
+                    output_dir,
+                    force=request.force,
+                )
+            except PartFileExistsError:
+                if self.logger is not None:
+                    self.logger.event(
+                        LogLevel.ERROR,
+                        LogEvent.OUTPUT_FILE_EXISTS,
+                        part_path=str(part_path),
+                    )
+                raise
+            part_paths.append(part_path)
 
         return SplitDocumentResult(
             source_path=request.source_path,

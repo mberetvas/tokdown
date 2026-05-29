@@ -3,8 +3,14 @@ from pathlib import Path
 import pytest
 
 from tests.fakes.fake_document_gateway import FakeDocumentGateway
-from tokdown.application.api import SplitDocumentApplication, SplitDocumentRequest
+from tests.fakes.fake_structured_logger import FakeStructuredLogger
+from tokdown.application.api import (
+    PartFileExistsError,
+    SplitDocumentApplication,
+    SplitDocumentRequest,
+)
 from tokdown.domain.api import ChunkUnit, DocumentSplittingDomain, chunk_limit
+from tokdown.domain.logging.api import LogEvent, LogLevel
 from tokdown.infrastructure.api import create_infrastructure
 
 
@@ -70,3 +76,102 @@ def test_execute_uses_real_chunk_sizer_factory(
     result = application.execute(request)
 
     assert result.part_count == 2
+
+
+def test_execute_raises_when_part_file_exists_without_force(
+    source_path: Path,
+    tmp_path: Path,
+) -> None:
+    infrastructure = create_infrastructure()
+    gateway = FakeDocumentGateway(
+        documents={source_path: source_path.read_text(encoding="utf-8")},
+    )
+    application = SplitDocumentApplication(
+        document_gateway=gateway,
+        chunk_sizer_factory=infrastructure.chunk_sizer_factory,
+        splitting_domain=DocumentSplittingDomain(),
+    )
+    output_dir = tmp_path / "out"
+    request = SplitDocumentRequest(
+        source_path=source_path,
+        limit=chunk_limit(3, ChunkUnit.WORDS),
+        token_provider="",
+        model_id="",
+        output_dir=output_dir,
+    )
+    application.execute(request)
+
+    with pytest.raises(PartFileExistsError):
+        application.execute(request)
+
+
+def test_execute_overwrites_existing_parts_with_force(
+    source_path: Path,
+    tmp_path: Path,
+) -> None:
+    infrastructure = create_infrastructure()
+    gateway = FakeDocumentGateway(
+        documents={source_path: "alpha beta gamma delta"},
+    )
+    application = SplitDocumentApplication(
+        document_gateway=gateway,
+        chunk_sizer_factory=infrastructure.chunk_sizer_factory,
+        splitting_domain=DocumentSplittingDomain(),
+    )
+    output_dir = tmp_path / "out"
+    base_request = SplitDocumentRequest(
+        source_path=source_path,
+        limit=chunk_limit(2, ChunkUnit.WORDS),
+        token_provider="",
+        model_id="",
+        output_dir=output_dir,
+    )
+    application.execute(base_request)
+
+    updated = SplitDocumentRequest(
+        source_path=source_path,
+        limit=chunk_limit(1, ChunkUnit.WORDS),
+        token_provider="",
+        model_id="",
+        output_dir=output_dir,
+        force=True,
+    )
+    result = application.execute(updated)
+
+    assert result.part_count == 4
+    assert len(gateway.written_parts) == 4
+
+
+def test_execute_logs_output_file_exists_on_part_file_exists_error(
+    source_path: Path,
+    tmp_path: Path,
+) -> None:
+    infrastructure = create_infrastructure()
+    gateway = FakeDocumentGateway(
+        documents={source_path: source_path.read_text(encoding="utf-8")},
+    )
+    logger = FakeStructuredLogger()
+    application = SplitDocumentApplication(
+        document_gateway=gateway,
+        chunk_sizer_factory=infrastructure.chunk_sizer_factory,
+        splitting_domain=DocumentSplittingDomain(),
+        logger=logger,
+    )
+    output_dir = tmp_path / "out"
+    request = SplitDocumentRequest(
+        source_path=source_path,
+        limit=chunk_limit(3, ChunkUnit.WORDS),
+        token_provider="",
+        model_id="",
+        output_dir=output_dir,
+    )
+    application.execute(request)
+
+    with pytest.raises(PartFileExistsError):
+        application.execute(request)
+
+    assert len(logger.events) == 1
+    level, event_name, context = logger.events[0]
+    assert level is LogLevel.ERROR
+    assert event_name == LogEvent.OUTPUT_FILE_EXISTS
+    assert context["part_path"] == str(output_dir / "notes_part1.md")
