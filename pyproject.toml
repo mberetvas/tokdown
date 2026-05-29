@@ -43,9 +43,6 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "src/tokdown/domain/api.py" = ["TID251"]
-"src/tokdown/application/api.py" = ["TID251"]
-"src/tokdown/infrastructure/api.py" = ["TID251"]
-"src/tokdown/interface/api.py" = ["TID251"]
 "tests/domain/_internal/**" = ["TID251"]
 
 [tool.pytest.ini_options]

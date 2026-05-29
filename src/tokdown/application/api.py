@@ -1,4 +1,6 @@
-from tokdown.application._internal.split_document import SplitDocumentApplication
+from tokdown.application._internal.composition import (  # noqa: TID251
+    SplitDocumentApplication,
+)
 from tokdown.application.dtos import SplitDocumentRequest, SplitDocumentResult
 from tokdown.application.ports import (
     DocumentGateway,

@@ -109,14 +109,19 @@ Hard-splitting inside a code fence adds closing/reopening fence lines. That slig
 
 Tokdown uses a **facade per layer**: each package exposes a single public `api.py`. Implementation details live in `_internal/` and must not be imported across layer boundaries.
 
+**Composition modules** (`<layer>/_internal/composition.py`) wire adapters and use cases inside each layer. Non-domain facades re-export from composition with a single `# noqa: TID251` import line in `api.py`. The domain facade (`domain/api.py`) keeps a file-level TID251 ignore because it is the only public surface for domain internals.
+
 ```text
 src/tokdown/
-  interface/api.py       → CLI entry (main)
-  application/api.py     → SplitDocumentApplication, DTOs
-  application/ports.py   → DocumentGateway
-  domain/api.py          → DocumentSplittingDomain (pure string splitting)
-  domain/logging/api.py  → StructuredLogger port, LogEvent constants
-  infrastructure/api.py  → create_infrastructure(), adapters
+  interface/api.py                    → main() (one noqa re-export from composition)
+  interface/_internal/composition.py  → run_cli()
+  application/api.py                  → SplitDocumentApplication, DTOs
+  application/_internal/composition.py
+  application/ports.py                → DocumentGateway
+  domain/api.py                       → DocumentSplittingDomain (pure string splitting)
+  domain/logging/api.py               → StructuredLogger port, LogEvent constants
+  infrastructure/api.py             → create_infrastructure() (one noqa re-export)
+  infrastructure/_internal/composition.py
 ```
 
 **Allowed imports**
@@ -127,15 +132,18 @@ src/tokdown/
 | `application` | `domain.api`, `application.ports` |
 | `infrastructure` | `application.ports`, `domain.api`, `domain.logging.api` |
 | `domain` (other packages) | `domain.api` only |
-| Each layer’s `api.py` | Its own `_internal` |
+| `<layer>/_internal/**` | Same layer’s `_internal` only |
+| Non-domain `api.py` | Its own `_internal.composition` only (one `# noqa: TID251` line) |
+| `domain/api.py` | `domain._internal` (file-level TID251 ignore) |
 | `tests/domain/_internal/` | `domain._internal` (chunking edge cases only) |
 
 **Enforcement (merge blocker)**
 
-Ruff rules `TID252` and `flake8-tidy-imports` `banned-api` in `pyproject.toml` ban imports of `tokdown.*._internal` outside the owning package. CI and local checks must pass:
+Cross-layer `_internal` imports are not allowed. Ruff (`TID252`, `flake8-tidy-imports` `banned-api`) and `tests/architecture/test_internal_import_boundaries.py` (AST walk of `src/tokdown`) enforce this. CI and local checks must pass:
 
 ```bash
 uv run ruff check src tests
+uv run pytest tests/architecture -q
 ```
 
 ## Development
@@ -172,6 +180,7 @@ Development is test-driven: add or extend tests under `tests/`, implement behind
 
 ```text
 tests/
+  architecture/        # import-boundary AST guard
   domain/              # domain.api facade
   domain/_internal/    # chunking / fence tests
   domain/logging/      # logging port contract
