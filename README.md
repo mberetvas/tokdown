@@ -1,5 +1,7 @@
 # tokdown
 
+![tokdown](docs/assets/tokdown.jpg)
+
 Split markdown documents into size-bounded parts for LLM context windows. Tokdown preserves fenced code blocks where possible and auto-heals fences when a block must be hard-split.
 
 Chunk limits can be expressed in **Google tokens** (Hugging Face tokenizer), **OpenAI tokens** (tiktoken), or **words**.
