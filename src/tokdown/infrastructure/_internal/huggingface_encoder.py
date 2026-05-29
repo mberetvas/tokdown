@@ -20,6 +20,8 @@ class HuggingFaceEncoderFactory:
         import os
 
         os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+        os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+        os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
 
         from transformers import AutoTokenizer
         from transformers.utils import logging as hf_logging

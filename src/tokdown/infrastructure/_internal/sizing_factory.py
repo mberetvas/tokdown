@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from tokdown.application.dtos import SplitDocumentRequest
+from tokdown.application.dtos import SizerConfig
 from tokdown.domain.api import ChunkSizer, ChunkUnit, WordChunkSizer
 
 from .token_chunk_sizer import TokenChunkSizer
@@ -13,14 +13,14 @@ class ChunkSizerFactory:
         default_factory=CompositeTokenEncoderFactory,
     )
 
-    def create_for(self, request: SplitDocumentRequest) -> ChunkSizer:
-        if request.limit.unit == ChunkUnit.WORDS:
+    def create_for(self, config: SizerConfig) -> ChunkSizer:
+        if config.unit == ChunkUnit.WORDS:
             return WordChunkSizer()
-        if request.limit.unit == ChunkUnit.TOKENS:
+        if config.unit == ChunkUnit.TOKENS:
             encoder = self._token_encoder_factory.create(
-                request.token_provider,
-                request.model_id,
+                config.token_provider,
+                config.model_id,
             )
             return TokenChunkSizer(encoder)
-        msg = f"unsupported chunk unit: {request.limit.unit}"
+        msg = f"unsupported chunk unit: {config.unit}"
         raise NotImplementedError(msg)

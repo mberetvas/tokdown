@@ -17,17 +17,44 @@ uv sync
 
 ## Usage
 
+Tokdown has two subcommands: **count** (measure size) and **split** (write part files). Legacy invocations without a subcommand still work — they are treated as `split`.
+
 ```text
-tokdown [options] <input_file> <limit> [output_dir]
+tokdown count [options] <input_file>
+tokdown split [options] <input_file> <limit> [output_dir]
+tokdown [options] <input_file> <limit> [output_dir]   # legacy → split
 ```
 
 | Argument | Description |
 | -------- | ----------- |
-| `input_file` | Source `.md` file to split |
-| `limit` | Maximum size per part (tokens or words, depending on mode) |
-| `output_dir` | Optional output directory (defaults to the source file’s parent) |
+| `input_file` | Source `.md` file |
+| `limit` | Maximum size per part (split only; tokens or words, depending on mode) |
+| `output_dir` | Optional output directory for split (defaults to the source file’s parent) |
 
 Parts are written as `{stem}_part{n}.md` (for example `notes_part1.md`).
+
+### Count
+
+Print a bare integer to **stdout** (one line, no labels) so shell scripts can compare sizes before splitting:
+
+```bash
+uv run tokdown count document.md
+uv run tokdown count --words document.md
+uv run tokdown count --provider openai document.md
+
+if [ "$(uv run tokdown count --words doc.md)" -gt 4000 ]; then
+  echo "Document too large for this step"
+fi
+```
+
+| Stream | Success | Failure |
+| ------ | ------- | ------- |
+| stdout | Integer + newline only | **Empty** |
+| stderr | Structured logs (if enabled) | Error message + logs |
+
+Split keeps printing errors on stdout for backward compatibility with existing scripts.
+
+When using the Google provider, tokdown sets `HF_HUB_DISABLE_PROGRESS_BARS=1` and `TRANSFORMERS_NO_ADVISORY_WARNINGS=1` to reduce Hub noise on stderr during count and split.
 
 ### Google tokens (default)
 
@@ -35,6 +62,7 @@ Uses a Hugging Face tokenizer. Default model: `google/gemma-2-2b`.
 
 ```bash
 uv run tokdown document.md 4000
+uv run tokdown split document.md 4000
 uv run tokdown --provider google -m google/gemma-2-2b document.md 4000 ./parts
 ```
 
@@ -115,7 +143,7 @@ Tokdown uses a **facade per layer**: each package exposes a single public `api.p
 src/tokdown/
   interface/api.py                    → main() (one noqa re-export from composition)
   interface/_internal/composition.py  → run_cli()
-  application/api.py                  → SplitDocumentApplication, DTOs
+  application/api.py                  → SplitDocumentApplication, CountDocumentApplication, DTOs
   application/_internal/composition.py
   application/ports.py                → DocumentGateway
   domain/api.py                       → DocumentSplittingDomain (pure string splitting)

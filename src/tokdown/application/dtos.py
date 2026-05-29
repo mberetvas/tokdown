@@ -1,7 +1,26 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from tokdown.domain.api import ChunkLimit
+from tokdown.domain.api import ChunkLimit, ChunkUnit
+
+
+@dataclass(frozen=True)
+class SizerConfig:
+    unit: ChunkUnit
+    token_provider: str  # "" when unit is WORDS
+    model_id: str  # "" when unit is WORDS
+
+
+@dataclass(frozen=True)
+class CountDocumentRequest:
+    source_path: Path
+    sizer_config: SizerConfig
+
+
+@dataclass(frozen=True)
+class CountDocumentResult:
+    source_path: Path
+    count: int
 
 
 @dataclass(frozen=True)

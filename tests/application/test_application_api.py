@@ -5,7 +5,10 @@ import pytest
 from tests.fakes.fake_document_gateway import FakeDocumentGateway
 from tests.fakes.fake_structured_logger import FakeStructuredLogger
 from tokdown.application.api import (
+    CountDocumentApplication,
+    CountDocumentRequest,
     PartFileExistsError,
+    SizerConfig,
     SplitDocumentApplication,
     SplitDocumentRequest,
 )
@@ -175,3 +178,117 @@ def test_execute_logs_output_file_exists_on_part_file_exists_error(
     assert level is LogLevel.ERROR
     assert event_name == LogEvent.OUTPUT_FILE_EXISTS
     assert context["part_path"] == str(output_dir / "notes_part1.md")
+
+
+def test_count_document_returns_word_count(source_path: Path) -> None:
+    infrastructure = create_infrastructure()
+    gateway = FakeDocumentGateway(
+        documents={source_path: source_path.read_text(encoding="utf-8")},
+    )
+    application = CountDocumentApplication(
+        document_gateway=gateway,
+        chunk_sizer_factory=infrastructure.chunk_sizer_factory,
+    )
+    request = CountDocumentRequest(
+        source_path=source_path,
+        sizer_config=SizerConfig(
+            unit=ChunkUnit.WORDS,
+            token_provider="",
+            model_id="",
+        ),
+    )
+
+    result = application.execute(request)
+
+    assert result.count == 6
+
+
+def test_count_document_returns_openai_token_count(source_path: Path) -> None:
+    infrastructure = create_infrastructure()
+    gateway = FakeDocumentGateway(
+        documents={source_path: "one two three"},
+    )
+    application = CountDocumentApplication(
+        document_gateway=gateway,
+        chunk_sizer_factory=infrastructure.chunk_sizer_factory,
+    )
+    request = CountDocumentRequest(
+        source_path=source_path,
+        sizer_config=SizerConfig(
+            unit=ChunkUnit.TOKENS,
+            token_provider="openai",
+            model_id="cl100k_base",
+        ),
+    )
+
+    result = application.execute(request)
+
+    assert result.count == 3
+
+
+def test_count_document_empty_body_returns_zero(source_path: Path) -> None:
+    infrastructure = create_infrastructure()
+    gateway = FakeDocumentGateway(documents={source_path: ""})
+    application = CountDocumentApplication(
+        document_gateway=gateway,
+        chunk_sizer_factory=infrastructure.chunk_sizer_factory,
+    )
+    request = CountDocumentRequest(
+        source_path=source_path,
+        sizer_config=SizerConfig(
+            unit=ChunkUnit.WORDS,
+            token_provider="",
+            model_id="",
+        ),
+    )
+
+    result = application.execute(request)
+
+    assert result.count == 0
+
+
+def test_count_document_whitespace_only_body_returns_zero_for_words(
+    source_path: Path,
+) -> None:
+    infrastructure = create_infrastructure()
+    gateway = FakeDocumentGateway(documents={source_path: "   \n\t  \n"})
+    application = CountDocumentApplication(
+        document_gateway=gateway,
+        chunk_sizer_factory=infrastructure.chunk_sizer_factory,
+    )
+    request = CountDocumentRequest(
+        source_path=source_path,
+        sizer_config=SizerConfig(
+            unit=ChunkUnit.WORDS,
+            token_provider="",
+            model_id="",
+        ),
+    )
+
+    result = application.execute(request)
+
+    assert result.count == 0
+
+
+def test_count_document_whitespace_only_body_openai_token_count(
+    source_path: Path,
+) -> None:
+    infrastructure = create_infrastructure()
+    body = "   \n\t  \n"
+    gateway = FakeDocumentGateway(documents={source_path: body})
+    application = CountDocumentApplication(
+        document_gateway=gateway,
+        chunk_sizer_factory=infrastructure.chunk_sizer_factory,
+    )
+    request = CountDocumentRequest(
+        source_path=source_path,
+        sizer_config=SizerConfig(
+            unit=ChunkUnit.TOKENS,
+            token_provider="openai",
+            model_id="cl100k_base",
+        ),
+    )
+
+    result = application.execute(request)
+
+    assert result.count == 2

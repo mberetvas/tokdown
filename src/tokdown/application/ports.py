@@ -1,6 +1,10 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
+
+from tokdown.application.dtos import SizerConfig
+from tokdown.domain.api import ChunkSizer
 
 
 @dataclass(frozen=True)
@@ -21,6 +25,11 @@ class DocumentPart:
 
 class PartFileExistsError(Exception):
     """Raised when {stem}_part{n}.md exists and force=False."""
+
+
+class ChunkSizerFactory(Protocol):
+    def create_for(self, config: SizerConfig) -> ChunkSizer:
+        """Create a chunk sizer for the given sizing configuration."""
 
 
 class DocumentGateway(ABC):

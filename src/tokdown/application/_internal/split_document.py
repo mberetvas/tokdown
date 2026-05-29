@@ -1,16 +1,19 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
 
-from tokdown.application.dtos import SplitDocumentRequest, SplitDocumentResult
-from tokdown.application.ports import DocumentGateway, DocumentPart, PartFileExistsError
-from tokdown.domain.api import ChunkSizer, DocumentSplittingDomain
+from tokdown.application.dtos import (
+    SizerConfig,
+    SplitDocumentRequest,
+    SplitDocumentResult,
+)
+from tokdown.application.ports import (
+    ChunkSizerFactory,
+    DocumentGateway,
+    DocumentPart,
+    PartFileExistsError,
+)
+from tokdown.domain.api import DocumentSplittingDomain
 from tokdown.domain.logging.api import LogEvent, LogLevel, StructuredLogger
-
-
-class ChunkSizerFactory(Protocol):
-    def create_for(self, request: SplitDocumentRequest) -> ChunkSizer:
-        """Create a chunk sizer for the given request."""
 
 
 @dataclass
@@ -23,7 +26,13 @@ class SplitDocumentApplication:
     def execute(self, request: SplitDocumentRequest) -> SplitDocumentResult:
         document = self.document_gateway.load(request.source_path)
         output_dir = request.output_dir or request.source_path.parent
-        sizer = self.chunk_sizer_factory.create_for(request)
+        sizer = self.chunk_sizer_factory.create_for(
+            SizerConfig(
+                unit=request.limit.unit,
+                token_provider=request.token_provider,
+                model_id=request.model_id,
+            ),
+        )
         chunks = self.splitting_domain.split(document.body, request.limit, sizer)
 
         part_paths: list[Path] = []
