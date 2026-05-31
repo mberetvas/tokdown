@@ -20,13 +20,6 @@ class MarkdownChunkingService:
         self._logger = logger
 
     def split(self, body: str, limit: ChunkLimit, sizer: ChunkSizer) -> list[str]:
-        if limit.value <= 0:
-            msg = "chunk limit must be positive"
-            raise ValueError(msg)
-
-        if not body:
-            return [""]
-
         if sizer.measure(body) <= limit.value:
             return [body]
 

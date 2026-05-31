@@ -28,6 +28,13 @@ class DocumentSplittingDomain:
         sizer: ChunkSizer,
     ) -> list[str]:
         """Return chunk bodies, each within limit per sizer unit."""
+        if limit.value <= 0:
+            msg = "chunk limit must be positive"
+            raise ValueError(msg)
+
+        if not body or not body.strip():
+            return [""]
+
         return self._chunking_service.split(body, limit, sizer)
 
 
