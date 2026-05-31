@@ -9,6 +9,7 @@ FENCE_LINE = re.compile(r"^(\s*)(`{3,}|~{3,})(.*)$")
 class RegionKind(Enum):
     PROSE = "prose"
     FENCE = "fence"
+    FRONTMATTER = "frontmatter"
 
 
 @dataclass(frozen=True)
@@ -52,13 +53,35 @@ def is_closing_fence(line: str, opening: FenceInfo) -> bool:
     )
 
 
+def _is_frontmatter_delimiter(line: str) -> bool:
+    return line.rstrip("\r").rstrip() == "---"
+
+
+def _find_frontmatter_close(lines: list[str]) -> int | None:
+    for i in range(1, len(lines)):
+        if _is_frontmatter_delimiter(lines[i]):
+            return i
+    return None
+
+
 def iter_regions(text: str) -> Iterator[MarkdownRegion]:
-    """Yield prose and fenced regions in document order."""
+    """Yield prose, fenced, and frontmatter regions in document order."""
     if not text:
         yield MarkdownRegion(kind=RegionKind.PROSE, text="")
         return
 
     lines = text.split("\n")
+    start_index = 0
+
+    if _is_frontmatter_delimiter(lines[0]):
+        closing = _find_frontmatter_close(lines)
+        if closing is not None:
+            yield MarkdownRegion(
+                kind=RegionKind.FRONTMATTER,
+                text="\n".join(lines[: closing + 1]),
+            )
+            start_index = closing + 1
+
     prose_lines: list[str] = []
     fence_lines: list[str] = []
     open_fence: FenceInfo | None = None
@@ -75,7 +98,7 @@ def iter_regions(text: str) -> Iterator[MarkdownRegion]:
             text=text,
         )
 
-    for line in lines:
+    for line in lines[start_index:]:
         if open_fence is None:
             parsed = parse_fence_line(line)
             if parsed is not None:

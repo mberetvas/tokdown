@@ -110,3 +110,29 @@ def test_domain_api_exports_split_surface_only() -> None:
         "DocumentPart",
     }
     assert forbidden.isdisjoint(set(domain_api.__all__))
+
+
+def test_frontmatter_in_first_chunk_not_in_subsequent() -> None:
+    domain = DocumentSplittingDomain()
+    sizer = WordChunkSizer()
+    limit = chunk_limit(5, ChunkUnit.WORDS)
+    body = "---\ntitle: test\n---\n\nfirst paragraph here\n\nsecond paragraph here"
+
+    chunks = domain.split(body, limit, sizer)
+
+    assert len(chunks) >= 2
+    assert chunks[0].startswith("---\n")
+    assert "title: test" in chunks[0]
+    for chunk in chunks[1:]:
+        assert "---\ntitle:" not in chunk
+
+
+def test_unclosed_frontmatter_treated_as_prose_via_facade() -> None:
+    domain = DocumentSplittingDomain()
+    sizer = WordChunkSizer()
+    limit = chunk_limit(100, ChunkUnit.WORDS)
+    body = "---\ntitle: hello\nno closing marker"
+
+    chunks = domain.split(body, limit, sizer)
+
+    assert chunks == [body]

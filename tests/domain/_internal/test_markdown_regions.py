@@ -82,3 +82,60 @@ def test_fence_with_inner_blank_lines_is_single_region() -> None:
     assert len(regions) == 1
     assert regions[0].kind is RegionKind.FENCE
     assert "\n\n" in regions[0].text
+
+
+def test_iter_regions_detects_frontmatter_at_file_start() -> None:
+    text = "---\ntitle: hello\n---\nsome content"
+
+    regions = list(iter_regions(text))
+
+    assert regions[0].kind is RegionKind.FRONTMATTER
+    assert regions[0].text == "---\ntitle: hello\n---"
+    assert regions[1].kind is RegionKind.PROSE
+    assert "some content" in regions[1].text
+
+
+def test_frontmatter_with_multiple_keys() -> None:
+    text = "---\ntitle: hello\nauthor: world\ntags:\n  - one\n  - two\n---\n\ncontent"
+
+    regions = list(iter_regions(text))
+
+    assert regions[0].kind is RegionKind.FRONTMATTER
+    assert "title: hello" in regions[0].text
+    assert "author: world" in regions[0].text
+
+
+def test_empty_frontmatter() -> None:
+    text = "---\n---\ncontent"
+
+    regions = list(iter_regions(text))
+
+    assert regions[0].kind is RegionKind.FRONTMATTER
+    assert regions[0].text == "---\n---"
+
+
+def test_unclosed_frontmatter_treated_as_prose() -> None:
+    text = "---\ntitle: hello\nno closing marker"
+
+    regions = list(iter_regions(text))
+
+    assert all(r.kind is not RegionKind.FRONTMATTER for r in regions)
+    assert regions[0].kind is RegionKind.PROSE
+
+
+def test_frontmatter_not_detected_after_content() -> None:
+    text = "some content\n---\ntitle: hello\n---"
+
+    regions = list(iter_regions(text))
+
+    assert all(r.kind is not RegionKind.FRONTMATTER for r in regions)
+
+
+def test_frontmatter_followed_by_fence() -> None:
+    text = "---\ntitle: hello\n---\n\n```python\ncode\n```"
+
+    regions = list(iter_regions(text))
+
+    assert regions[0].kind is RegionKind.FRONTMATTER
+    fence_regions = [r for r in regions if r.kind is RegionKind.FENCE]
+    assert len(fence_regions) == 1

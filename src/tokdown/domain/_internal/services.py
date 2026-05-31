@@ -11,6 +11,7 @@ from .value_objects import ChunkLimit
 class SplittableUnit:
     text: str
     fence: FenceInfo | None = None
+    is_frontmatter: bool = False
 
 
 class MarkdownChunkingService:
@@ -28,6 +29,20 @@ class MarkdownChunkingService:
         current_parts: list[str] = []
 
         for unit in units:
+            if unit.is_frontmatter:
+                if (
+                    sizer.measure(unit.text) > limit.value
+                    and self._logger is not None
+                ):
+                    self._logger.event(
+                        LogLevel.WARN,
+                        LogEvent.FRONTMATTER_EXCEEDS_LIMIT,
+                        frontmatter_size=sizer.measure(unit.text),
+                        limit=limit.value,
+                    )
+                current_parts = [unit.text]
+                continue
+
             if sizer.measure(unit.text) > limit.value:
                 if current_parts:
                     chunks.append("\n\n".join(current_parts))
@@ -64,6 +79,9 @@ class MarkdownChunkingService:
 def _split_into_units(body: str) -> list[SplittableUnit]:
     units: list[SplittableUnit] = []
     for region in iter_regions(body):
+        if region.kind is RegionKind.FRONTMATTER:
+            units.append(SplittableUnit(text=region.text, is_frontmatter=True))
+            continue
         if region.kind is RegionKind.PROSE:
             if not region.text:
                 continue
