@@ -11,8 +11,8 @@
 .PARAMETER IssuesFolder
     Path to the folder that contains the issue .md files (no subfolders are scanned).
 
-.PARAMETER Model
-    Copilot model to use. Defaults to claude-sonnet-4.6.
+ .PARAMETER Model
+     Copilot model to use. Defaults to claude-opus-4.6.
 
 .PARAMETER Effort
     Reasoning effort level passed to Copilot. Choices: low, medium, high, xhigh.
