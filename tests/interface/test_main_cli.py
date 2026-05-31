@@ -327,6 +327,31 @@ def test_root_help_lists_count_and_split(capsys) -> None:
     assert captured.out.index(_BANNER_FIRST_LINE) < captured.out.index("usage:")
 
 
+def test_cli_module_does_not_import_stdout_clean() -> None:
+    """cli.py must not import or reference stdout_clean — adapters own suppression."""
+    import ast
+
+    cli_path = (
+        Path(__file__).resolve().parents[2]
+        / "src"
+        / "tokdown"
+        / "interface"
+        / "_internal"
+        / "cli.py"
+    )
+    source = cli_path.read_text(encoding="utf-8")
+    tree = ast.parse(source, filename=str(cli_path))
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.module and "stdout_clean" in node.module:
+                pytest.fail("cli.py still imports stdout_clean")
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if "stdout_clean" in alias.name:
+                    pytest.fail("cli.py still imports stdout_clean")
+
+
 def test_count_openai_stdout_is_integer_only(tmp_path: Path, capsys) -> None:
     source = tmp_path / "sample.md"
     source.write_text("one two three", encoding="utf-8")

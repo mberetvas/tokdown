@@ -1,3 +1,8 @@
+import contextlib
+import io
+import os
+import sys
+from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,11 +18,19 @@ class HuggingFaceEncoder:
         return self._tokenizer.decode(token_ids)
 
 
-def create_encoder(model_id: str) -> HuggingFaceEncoder:
-    import os
+@contextlib.contextmanager
+def _suppress_stdout() -> Generator[None]:
+    """Redirect stdout to devnull so third-party libs cannot pollute it."""
+    original = sys.stdout
+    sys.stdout = io.StringIO()
+    try:
+        yield
+    finally:
+        sys.stdout = original
 
+
+def create_encoder(model_id: str) -> HuggingFaceEncoder:
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
     os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
 
     try:
@@ -31,5 +44,28 @@ def create_encoder(model_id: str) -> HuggingFaceEncoder:
         raise ImportError(msg) from None
 
     hf_logging.set_verbosity_error()
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
+
+    # Cached path: suppress all output
+    os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+    try:
+        with _suppress_stdout():
+            tokenizer = AutoTokenizer.from_pretrained(
+                model_id, local_files_only=True
+            )
+        return HuggingFaceEncoder(tokenizer)
+    except OSError:
+        pass  # Not cached locally, fall through to download
+
+    # Uncached: allow stderr progress, print download notice
+    os.environ.pop("HF_HUB_DISABLE_PROGRESS_BARS", None)
+    print("Downloading tokenizer\u2026", file=sys.stderr)
+    try:
+        with _suppress_stdout():
+            tokenizer = AutoTokenizer.from_pretrained(model_id)
+    except Exception as exc:
+        msg = (
+            f"Model '{model_id}' is not cached and network is unavailable."
+        )
+        raise RuntimeError(msg) from exc
+
     return HuggingFaceEncoder(tokenizer)

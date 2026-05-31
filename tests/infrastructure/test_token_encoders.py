@@ -158,3 +158,96 @@ def test_huggingface_encode_omits_special_tokens() -> None:
     without_special = len(encoder.encode(text))
 
     assert without_special < with_special
+
+
+# ---------- stdout suppression (cached model) ----------
+
+
+def test_tiktoken_cached_does_not_pollute_stdout(capsys) -> None:
+    """When tiktoken encoding data is cached, nothing appears on stdout."""
+    mod = _internal_module("tiktoken_encoder")
+    # cl100k_base is always cached in CI / dev after first load
+    mod.create_encoder("cl100k_base")
+
+    captured = capsys.readouterr()
+    assert captured.out == "", f"stdout polluted: {captured.out!r}"
+
+
+@pytest.mark.slow
+def test_huggingface_cached_does_not_pollute_stdout(capsys) -> None:
+    """When HF model is cached locally, nothing appears on stdout."""
+    mod = _internal_module("huggingface_encoder")
+    try:
+        mod.create_encoder("google/gemma-2-2b")
+    except OSError as exc:
+        _skip_if_hf_model_unavailable(exc)
+        raise
+
+    captured = capsys.readouterr()
+    assert captured.out == "", f"stdout polluted: {captured.out!r}"
+
+
+# ---------- offline + uncached → RuntimeError ----------
+
+
+def test_tiktoken_offline_uncached_raises_runtime_error() -> None:
+    """Tiktoken must raise RuntimeError when encoding is not cached and network
+    is unavailable."""
+    mod = _internal_module("tiktoken_encoder")
+    importlib.reload(mod)
+
+    import tiktoken
+
+    def _fail_get_encoding(name):
+        raise ConnectionError("Simulated network failure")
+
+    # Clear in-memory cache so it actually tries to load
+    tiktoken.registry.ENCODINGS.pop("fake_uncached_enc", None)
+
+    with patch.object(tiktoken, "get_encoding", side_effect=_fail_get_encoding):
+        with patch(
+            f"{mod.__name__}._is_cached",
+            return_value=False,
+        ):
+            with pytest.raises(
+                RuntimeError,
+                match="not cached and network is unavailable",
+            ):
+                mod.create_encoder("fake_uncached_enc")
+
+
+def test_huggingface_offline_uncached_raises_runtime_error() -> None:
+    """HuggingFace must raise RuntimeError when model is not cached and network
+    is unavailable."""
+    mod = _internal_module("huggingface_encoder")
+    importlib.reload(mod)
+
+    from transformers import AutoTokenizer
+
+    with patch.object(
+        AutoTokenizer,
+        "from_pretrained",
+        side_effect=OSError("Simulated network failure"),
+    ):
+        with pytest.raises(
+            RuntimeError,
+            match="not cached and network is unavailable",
+        ):
+            mod.create_encoder("fake/uncached-model")
+
+
+# ---------- stdout_clean.py must be deleted ----------
+
+
+def test_stdout_clean_module_deleted() -> None:
+    stdout_clean_path = (
+        Path(__file__).resolve().parents[2]
+        / "src"
+        / "tokdown"
+        / "interface"
+        / "_internal"
+        / "stdout_clean.py"
+    )
+    assert not stdout_clean_path.exists(), (
+        "stdout_clean.py should be deleted — adapters handle their own suppression"
+    )
