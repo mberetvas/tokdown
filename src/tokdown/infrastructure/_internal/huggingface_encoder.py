@@ -62,10 +62,12 @@ def create_encoder(model_id: str) -> HuggingFaceEncoder:
     try:
         with _suppress_stdout():
             tokenizer = AutoTokenizer.from_pretrained(model_id)
-    except Exception as exc:
+    except OSError as exc:
         msg = (
             f"Model '{model_id}' is not cached and network is unavailable."
+            f" Original error: {exc}"
         )
         raise RuntimeError(msg) from exc
 
+    return HuggingFaceEncoder(tokenizer)
     return HuggingFaceEncoder(tokenizer)
