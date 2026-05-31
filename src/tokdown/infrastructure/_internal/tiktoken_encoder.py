@@ -79,15 +79,21 @@ def create_encoder(model_id: str) -> TiktokenEncoder:
         return TiktokenEncoder(encoding)
 
     # Not cached — download with progress on stderr
+    # Not cached — download with progress on stderr
     print("Downloading tokenizer\u2026", file=sys.stderr)
     try:
         with _suppress_stdout():
             encoding = tiktoken.get_encoding(model_id)
+    except (KeyError, ValueError):
+        raise
     except Exception as exc:
         msg = (
             f"Encoding '{model_id}' is not cached"
             " and network is unavailable."
+            f" Original error: {exc}"
         )
         raise RuntimeError(msg) from exc
+
+    return TiktokenEncoder(encoding)
 
     return TiktokenEncoder(encoding)
