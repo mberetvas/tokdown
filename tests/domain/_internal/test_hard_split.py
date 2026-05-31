@@ -1,10 +1,13 @@
 """Tests for ChunkSizer.hard_split implementations."""
 
 from dataclasses import dataclass
+import importlib
 
 from tokdown.domain.api import WordChunkSizer
-from tokdown.infrastructure._internal.token_chunk_sizer import TokenChunkSizer
 
+TokenChunkSizer = importlib.import_module(
+    "tokdown.infrastructure._internal.token_chunk_sizer",
+).TokenChunkSizer
 # ── Fake encoder for deterministic token tests ──────────────────────
 
 
