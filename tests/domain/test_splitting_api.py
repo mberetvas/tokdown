@@ -1,3 +1,5 @@
+import pytest
+
 import tokdown.domain.api as domain_api
 from tokdown.domain.api import (
     ChunkUnit,
@@ -65,6 +67,40 @@ def test_fence_with_inner_blank_lines_is_not_split_when_under_limit() -> None:
     assert chunks == [body]
 
 
+def test_split_raises_value_error_when_limit_is_zero() -> None:
+    domain = DocumentSplittingDomain()
+    sizer = WordChunkSizer()
+    limit = chunk_limit(0, ChunkUnit.WORDS)
+
+    with pytest.raises(ValueError, match="chunk limit must be positive"):
+        domain.split("some text", limit, sizer)
+
+
+def test_split_raises_value_error_when_limit_is_negative() -> None:
+    domain = DocumentSplittingDomain()
+    sizer = WordChunkSizer()
+    limit = chunk_limit(-5, ChunkUnit.WORDS)
+
+    with pytest.raises(ValueError, match="chunk limit must be positive"):
+        domain.split("some text", limit, sizer)
+
+
+def test_split_returns_empty_string_list_for_empty_body() -> None:
+    domain = DocumentSplittingDomain()
+    sizer = WordChunkSizer()
+    limit = chunk_limit(10, ChunkUnit.WORDS)
+
+    assert domain.split("", limit, sizer) == [""]
+
+
+def test_split_returns_empty_string_list_for_whitespace_only_body() -> None:
+    domain = DocumentSplittingDomain()
+    sizer = WordChunkSizer()
+    limit = chunk_limit(10, ChunkUnit.WORDS)
+
+    assert domain.split("   \n\t  ", limit, sizer) == [""]
+
+
 def test_domain_api_exports_split_surface_only() -> None:
     forbidden = {
         "DocumentGateway",
@@ -74,3 +110,29 @@ def test_domain_api_exports_split_surface_only() -> None:
         "DocumentPart",
     }
     assert forbidden.isdisjoint(set(domain_api.__all__))
+
+
+def test_frontmatter_in_first_chunk_not_in_subsequent() -> None:
+    domain = DocumentSplittingDomain()
+    sizer = WordChunkSizer()
+    limit = chunk_limit(5, ChunkUnit.WORDS)
+    body = "---\ntitle: test\n---\n\nfirst paragraph here\n\nsecond paragraph here"
+
+    chunks = domain.split(body, limit, sizer)
+
+    assert len(chunks) >= 2
+    assert chunks[0].startswith("---\n")
+    assert "title: test" in chunks[0]
+    for chunk in chunks[1:]:
+        assert "---\ntitle:" not in chunk
+
+
+def test_unclosed_frontmatter_treated_as_prose_via_facade() -> None:
+    domain = DocumentSplittingDomain()
+    sizer = WordChunkSizer()
+    limit = chunk_limit(100, ChunkUnit.WORDS)
+    body = "---\ntitle: hello\nno closing marker"
+
+    chunks = domain.split(body, limit, sizer)
+
+    assert chunks == [body]

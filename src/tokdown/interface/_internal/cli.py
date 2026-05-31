@@ -21,8 +21,6 @@ from tokdown.infrastructure.api import (
     create_infrastructure,
 )
 
-from .stdout_clean import stdout_clean
-
 
 @functools.lru_cache
 def _help_banner() -> str:
@@ -92,8 +90,7 @@ class CliController:
             sizer_config=sizer_config,
         )
         try:
-            with stdout_clean():
-                result = application.execute(request)
+            result = application.execute(request)
         except FileNotFoundError:
             print(f"Input file not found: {args.input_file}", file=sys.stderr)
             return 1

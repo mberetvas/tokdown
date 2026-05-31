@@ -80,6 +80,65 @@ def test_hard_split_emits_code_block_hard_split_warn_event() -> None:
     assert context["marker"] == "```"
 
 
+def test_frontmatter_glued_to_first_chunk_only() -> None:
+    body = "---\ntitle: test\n---\n\nfirst paragraph here\n\nsecond paragraph here"
+    service = MarkdownChunkingService()
+    limit = ChunkLimit(value=5, unit=ChunkUnit.WORDS)
+    sizer = WordChunkSizer()
+
+    chunks = service.split(body, limit, sizer)
+
+    assert len(chunks) >= 2
+    assert "---\ntitle: test\n---" in chunks[0]
+    for chunk in chunks[1:]:
+        assert "---\ntitle:" not in chunk
+
+
+def test_frontmatter_counts_against_chunk_limit() -> None:
+    body = "---\ntitle: hi\n---\n\nalpha beta\n\ngamma delta"
+    service = MarkdownChunkingService()
+    limit = ChunkLimit(value=6, unit=ChunkUnit.WORDS)
+    sizer = WordChunkSizer()
+
+    chunks = service.split(body, limit, sizer)
+
+    assert len(chunks) == 2
+    assert chunks[0].startswith("---\n")
+    assert "alpha beta" in chunks[0]
+    assert "gamma delta" in chunks[1]
+
+
+def test_frontmatter_exceeding_limit_warns_and_includes() -> None:
+    body = "---\ntitle: one two three four five six seven\n---\n\ncontent here"
+    logger = FakeStructuredLogger()
+    service = MarkdownChunkingService(logger=logger)
+    limit = ChunkLimit(value=3, unit=ChunkUnit.WORDS)
+    sizer = WordChunkSizer()
+
+    chunks = service.split(body, limit, sizer)
+
+    assert "---" in chunks[0]
+    assert "title:" in chunks[0]
+    warn_events = [
+        (lvl, name)
+        for lvl, name, _ in logger.events
+        if lvl is LogLevel.WARN and name == LogEvent.FRONTMATTER_EXCEEDS_LIMIT
+    ]
+    assert len(warn_events) == 1
+
+
+def test_frontmatter_exceeding_limit_does_not_crash() -> None:
+    body = "---\ntitle: one two three four five six seven eight nine ten\n---\n\nhi"
+    service = MarkdownChunkingService()
+    limit = ChunkLimit(value=2, unit=ChunkUnit.WORDS)
+    sizer = WordChunkSizer()
+
+    chunks = service.split(body, limit, sizer)
+
+    assert len(chunks) >= 1
+    assert "---" in chunks[0]
+
+
 def _code_lines_are_inside_fence(chunk: str) -> bool:
     lines = chunk.split("\n")
     fence_lines = [

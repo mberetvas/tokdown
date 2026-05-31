@@ -3,14 +3,15 @@ from dataclasses import dataclass
 from tokdown.domain.logging.api import LogEvent, LogLevel, StructuredLogger
 
 from .markdown_regions import FenceInfo, RegionKind, is_closing_fence, iter_regions
-from .sizing import ChunkSizer, TokenEncoder
-from .value_objects import ChunkLimit, ChunkUnit
+from .sizing import ChunkSizer
+from .value_objects import ChunkLimit
 
 
 @dataclass(frozen=True)
 class SplittableUnit:
     text: str
     fence: FenceInfo | None = None
+    is_frontmatter: bool = False
 
 
 class MarkdownChunkingService:
@@ -20,13 +21,6 @@ class MarkdownChunkingService:
         self._logger = logger
 
     def split(self, body: str, limit: ChunkLimit, sizer: ChunkSizer) -> list[str]:
-        if limit.value <= 0:
-            msg = "chunk limit must be positive"
-            raise ValueError(msg)
-
-        if not body:
-            return [""]
-
         if sizer.measure(body) <= limit.value:
             return [body]
 
@@ -35,6 +29,19 @@ class MarkdownChunkingService:
         current_parts: list[str] = []
 
         for unit in units:
+            if unit.is_frontmatter:
+                frontmatter_size = sizer.measure(unit.text)
+                if frontmatter_size > limit.value and self._logger is not None:
+                    self._logger.event(
+                        LogLevel.WARN,
+                        LogEvent.FRONTMATTER_EXCEEDS_LIMIT,
+                        frontmatter_size=frontmatter_size,
+                        limit=limit.value,
+                    )
+                current_parts = [unit.text]
+                continue
+                continue
+
             if sizer.measure(unit.text) > limit.value:
                 if current_parts:
                     chunks.append("\n\n".join(current_parts))
@@ -71,6 +78,9 @@ class MarkdownChunkingService:
 def _split_into_units(body: str) -> list[SplittableUnit]:
     units: list[SplittableUnit] = []
     for region in iter_regions(body):
+        if region.kind is RegionKind.FRONTMATTER:
+            units.append(SplittableUnit(text=region.text, is_frontmatter=True))
+            continue
         if region.kind is RegionKind.PROSE:
             if not region.text:
                 continue
@@ -145,39 +155,4 @@ def _hard_split_fence_unit(
 
 
 def _hard_split(text: str, limit: ChunkLimit, sizer: ChunkSizer) -> list[str]:
-    if limit.unit is ChunkUnit.TOKENS:
-        encoder = getattr(sizer, "encoder", None)
-        if encoder is None:
-            msg = "token limits require a token-aware chunk sizer"
-            raise ValueError(msg)
-        return _hard_split_tokens(text, limit.value, encoder)
-
-    words = text.split()
-    if not words:
-        return [""]
-
-    chunks: list[str] = []
-    for start in range(0, len(words), limit.value):
-        chunk_words = words[start : start + limit.value]
-        chunk = " ".join(chunk_words)
-        if sizer.measure(chunk) > limit.value:
-            msg = "hard-split produced a chunk larger than the limit"
-            raise ValueError(msg)
-        chunks.append(chunk)
-    return chunks
-
-
-def _hard_split_tokens(text: str, limit: int, encoder: TokenEncoder) -> list[str]:
-    token_ids = encoder.encode(text)
-    if not token_ids:
-        return [""]
-
-    chunks: list[str] = []
-    for start in range(0, len(token_ids), limit):
-        chunk_ids = token_ids[start : start + limit]
-        chunk = encoder.decode(chunk_ids)
-        if len(encoder.encode(chunk)) > limit:
-            msg = "hard-split produced a chunk larger than the limit"
-            raise ValueError(msg)
-        chunks.append(chunk)
-    return chunks
+    return sizer.hard_split(text, limit.value)

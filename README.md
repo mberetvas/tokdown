@@ -185,6 +185,12 @@ uv run ruff check src tests
 uv run pytest tests/architecture -q
 ```
 
+## Limitations
+
+**Whitespace normalization** — Consecutive blank lines (`\n\n\n` or more) are collapsed to a single blank line (`\n\n`). This is intentional: markdown renderers treat multiple blank lines identically, so the normalized output renders the same as the original.
+
+**File size / memory** — Tokdown loads the entire input file into memory. It is designed for LLM context preparation where source files are typically well under 1 MB. It is not suitable for multi-GB log files or other large inputs that would exhaust available memory.
+
 ## Development
 
 Install dependencies and dev tools:
