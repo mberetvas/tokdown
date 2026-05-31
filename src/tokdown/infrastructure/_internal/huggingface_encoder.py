@@ -1,10 +1,9 @@
-import contextlib
-import io
 import os
 import sys
-from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any
+
+from .suppress_stdout import suppress_stdout
 
 
 @dataclass(frozen=True)
@@ -16,17 +15,6 @@ class HuggingFaceEncoder:
 
     def decode(self, token_ids: list[int]) -> str:
         return self._tokenizer.decode(token_ids)
-
-
-@contextlib.contextmanager
-def _suppress_stdout() -> Generator[None]:
-    """Redirect stdout to devnull so third-party libs cannot pollute it."""
-    original = sys.stdout
-    sys.stdout = io.StringIO()
-    try:
-        yield
-    finally:
-        sys.stdout = original
 
 
 def create_encoder(model_id: str) -> HuggingFaceEncoder:
@@ -48,7 +36,7 @@ def create_encoder(model_id: str) -> HuggingFaceEncoder:
     # Cached path: suppress all output
     os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
     try:
-        with _suppress_stdout():
+        with suppress_stdout():
             tokenizer = AutoTokenizer.from_pretrained(
                 model_id, local_files_only=True
             )
@@ -60,7 +48,7 @@ def create_encoder(model_id: str) -> HuggingFaceEncoder:
     os.environ.pop("HF_HUB_DISABLE_PROGRESS_BARS", None)
     print("Downloading tokenizer\u2026", file=sys.stderr)
     try:
-        with _suppress_stdout():
+        with suppress_stdout():
             tokenizer = AutoTokenizer.from_pretrained(model_id)
     except OSError as exc:
         msg = (

@@ -1,9 +1,8 @@
-import contextlib
-import io
 import sys
-from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any
+
+from .suppress_stdout import suppress_stdout
 
 
 @dataclass(frozen=True)
@@ -15,17 +14,6 @@ class TiktokenEncoder:
 
     def decode(self, token_ids: list[int]) -> str:
         return self._encoding.decode(token_ids)
-
-
-@contextlib.contextmanager
-def _suppress_stdout() -> Generator[None]:
-    """Redirect stdout to devnull so third-party libs cannot pollute it."""
-    original = sys.stdout
-    sys.stdout = io.StringIO()
-    try:
-        yield
-    finally:
-        sys.stdout = original
 
 
 def _is_cached(encoding_name: str) -> bool:
@@ -74,7 +62,7 @@ def create_encoder(model_id: str) -> TiktokenEncoder:
         raise ImportError(msg) from None
 
     if _is_cached(model_id):
-        with _suppress_stdout():
+        with suppress_stdout():
             encoding = tiktoken.get_encoding(model_id)
         return TiktokenEncoder(encoding)
 
@@ -82,7 +70,7 @@ def create_encoder(model_id: str) -> TiktokenEncoder:
     # Not cached — download with progress on stderr
     print("Downloading tokenizer\u2026", file=sys.stderr)
     try:
-        with _suppress_stdout():
+        with suppress_stdout():
             encoding = tiktoken.get_encoding(model_id)
     except (KeyError, ValueError):
         raise
