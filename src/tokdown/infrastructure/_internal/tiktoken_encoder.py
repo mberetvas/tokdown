@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from typing import Any
 
-from tokdown.domain.api import TokenEncoder
-
 
 @dataclass(frozen=True)
 class TiktokenEncoder:
@@ -15,9 +13,15 @@ class TiktokenEncoder:
         return self._encoding.decode(token_ids)
 
 
-class TiktokenEncoderFactory:
-    def create(self, model_id: str) -> TokenEncoder:
+def create_encoder(model_id: str) -> TiktokenEncoder:
+    try:
         import tiktoken
+    except ImportError:
+        msg = (
+            "tiktoken is required for OpenAI token counting."
+            " Install it: uv add tiktoken"
+        )
+        raise ImportError(msg) from None
 
-        encoding = tiktoken.get_encoding(model_id)
-        return TiktokenEncoder(encoding)
+    encoding = tiktoken.get_encoding(model_id)
+    return TiktokenEncoder(encoding)
