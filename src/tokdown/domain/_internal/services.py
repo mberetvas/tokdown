@@ -30,17 +30,16 @@ class MarkdownChunkingService:
 
         for unit in units:
             if unit.is_frontmatter:
-                if (
-                    sizer.measure(unit.text) > limit.value
-                    and self._logger is not None
-                ):
+                frontmatter_size = sizer.measure(unit.text)
+                if frontmatter_size > limit.value and self._logger is not None:
                     self._logger.event(
                         LogLevel.WARN,
                         LogEvent.FRONTMATTER_EXCEEDS_LIMIT,
-                        frontmatter_size=sizer.measure(unit.text),
+                        frontmatter_size=frontmatter_size,
                         limit=limit.value,
                     )
                 current_parts = [unit.text]
+                continue
                 continue
 
             if sizer.measure(unit.text) > limit.value:
