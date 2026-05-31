@@ -3,8 +3,8 @@ from dataclasses import dataclass
 from tokdown.domain.logging.api import LogEvent, LogLevel, StructuredLogger
 
 from .markdown_regions import FenceInfo, RegionKind, is_closing_fence, iter_regions
-from .sizing import ChunkSizer, TokenEncoder
-from .value_objects import ChunkLimit, ChunkUnit
+from .sizing import ChunkSizer
+from .value_objects import ChunkLimit
 
 
 @dataclass(frozen=True)
@@ -145,39 +145,4 @@ def _hard_split_fence_unit(
 
 
 def _hard_split(text: str, limit: ChunkLimit, sizer: ChunkSizer) -> list[str]:
-    if limit.unit is ChunkUnit.TOKENS:
-        encoder = getattr(sizer, "encoder", None)
-        if encoder is None:
-            msg = "token limits require a token-aware chunk sizer"
-            raise ValueError(msg)
-        return _hard_split_tokens(text, limit.value, encoder)
-
-    words = text.split()
-    if not words:
-        return [""]
-
-    chunks: list[str] = []
-    for start in range(0, len(words), limit.value):
-        chunk_words = words[start : start + limit.value]
-        chunk = " ".join(chunk_words)
-        if sizer.measure(chunk) > limit.value:
-            msg = "hard-split produced a chunk larger than the limit"
-            raise ValueError(msg)
-        chunks.append(chunk)
-    return chunks
-
-
-def _hard_split_tokens(text: str, limit: int, encoder: TokenEncoder) -> list[str]:
-    token_ids = encoder.encode(text)
-    if not token_ids:
-        return [""]
-
-    chunks: list[str] = []
-    for start in range(0, len(token_ids), limit):
-        chunk_ids = token_ids[start : start + limit]
-        chunk = encoder.decode(chunk_ids)
-        if len(encoder.encode(chunk)) > limit:
-            msg = "hard-split produced a chunk larger than the limit"
-            raise ValueError(msg)
-        chunks.append(chunk)
-    return chunks
+    return sizer.hard_split(text, limit.value)
